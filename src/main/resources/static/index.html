@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Decathlon Web MVP</title>
     <style>
-    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
-    .row { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; flex-wrap: wrap; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border-bottom: 1px solid #eee; padding: .5rem; text-align: left; }
-    #error { color: #b00020; }
-  </style>
+        body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        .row { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; flex-wrap: wrap; }
+        .card { border: 1px solid #ddd; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid #eee; padding: .5rem; text-align: left; }
+        #error { color: #b00020; }
+    </style>
 </head>
 <body>
 <h1>Decathlon Web MVP</h1>
@@ -33,10 +33,27 @@
         <input id="name2" placeholder="same as above" />
         <label for="event">Event</label>
         <select id="event" data-testid="eventSelect">
-            <option value="100m">100m (s)</option>
-            <option value="longJump">Long Jump (cm)</option>
-            <option value="shotPut">Shot Put (m)</option>
-            <option value="400m">400m (s)</option>
+            <optgroup label="Decathlon (10-kamp)">
+                <option value="100m">100m (s)</option>
+                <option value="longJump">Long Jump (cm)</option>
+                <option value="shotPut">Shot Put (m)</option>
+                <option value="highJump">High Jump (cm)</option>
+                <option value="400m">400m (s)</option>
+                <option value="110mHurdles">110m Hurdles (s)</option>
+                <option value="discusThrow">Discus Throw (m)</option>
+                <option value="poleVault">Pole Vault (cm)</option>
+                <option value="javelinThrow">Javelin Throw (m)</option>
+                <option value="1500m">1500m (s)</option>
+            </optgroup>
+            <optgroup label="Heptathlon (7-kamp)">
+                <option value="hep100mHurdles">100m Hurdles (s)</option>
+                <option value="hepHighJump">High Jump (cm)</option>
+                <option value="hepShotPut">Shot Put (m)</option>
+                <option value="hep200m">200m (s)</option>
+                <option value="hepLongJump">Long Jump (cm)</option>
+                <option value="hepJavelinThrow">Javelin Throw (m)</option>
+                <option value="hep800m">800m (s)</option>
+            </optgroup>
         </select>
         <label for="raw">Result</label>
         <input id="raw" data-testid="rawInput" type="number" step="0.01" />
