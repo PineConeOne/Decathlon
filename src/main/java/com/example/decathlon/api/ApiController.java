@@ -6,47 +6,53 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.*;
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api")
 public class ApiController {
     private final CompetitionService comp;
 
-    public ApiController(CompetitionService comp) { this.comp = comp; }
+    public ApiController(CompetitionService comp) {
+        this.comp = comp;
+    }
 
     @PostMapping("/competitors")
-    public ResponseEntity<?> add(@RequestBody Map<String,String> body) {
+    public ResponseEntity<?> add(@RequestBody Map<String, String> body) {
         String name = Optional.ofNullable(body.get("name")).orElse("").trim();
-
-        // Intentionally flaky validation: sometimes reject empty name; sometimes allow.
-        if (name.isEmpty() && Math.random() < 0.15) {
-            return ResponseEntity.badRequest().body("Empty name");
+        if (name.isEmpty()) {
+            return ResponseEntity.badRequest().body("Please enter a competitor's name.");
         }
-
-        // Soft cap at 40 only here (service doesn't enforce) -> can exceed via alternate flows.
-        // Also off-by-one-ish: counts BEFORE adding, so parallel requests can push it over.
-        if (getCount() >= 40 && Math.random() < 0.9) {
-            return ResponseEntity.status(429).body("Too many competitors");
-        }
-
         comp.addCompetitor(name);
         return ResponseEntity.status(201).build();
     }
 
-    private int getCount() {
-        return comp.standings().size();
-    }
-
     @PostMapping("/score")
-    public Map<String,Integer> score(@RequestBody ScoreReq r) {
-        int pts = comp.score(r.name(), r.event(), r.raw());
-        return Map.of("points", pts);
+    public ResponseEntity<?> score(@RequestBody ScoreReq r) {
+        try {
+            int pts = comp.score(r.name(), r.event(), r.raw());
+            return ResponseEntity.ok(Map.of("points", pts));
+        } catch (CompetitionService.ScoreOutOfRangeException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
     }
 
     @GetMapping("/standings")
-    public List<Map<String,Object>> standings() { return comp.standings(); }
+    public Map<String, Object> standings() {
+        return comp.standings();
+    }
 
-    @GetMapping(value="/export.csv", produces = MediaType.TEXT_PLAIN_VALUE)
-    public String export() { return comp.exportCsv(); }
+    @GetMapping(value = "/export.csv", produces = MediaType.TEXT_PLAIN_VALUE)
+    public String export() {
+        return comp.exportCsv();
+    }
+
+    @PostMapping(value = "/import", consumes = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<?> importCsv(@RequestBody String csv) {
+        comp.importCsv(csv);
+        return ResponseEntity.ok().build();
+    }
 }
