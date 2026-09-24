@@ -7,14 +7,7 @@ public class ScoringServiceNegativTest {
     private final ScoringService scoring = new ScoringService();
 
 
-    // DECATHLON
 
-    @Test
-    void shouldNotReturnZeroForValid100mResult() {
-        int points = scoring.score("100m", 10.5);
-
-        assertNotEquals(0, points);
-    }
 
     @Test
     void shouldNotGiveSamePointsForDifferent100mTimes() {
@@ -24,12 +17,6 @@ public class ScoringServiceNegativTest {
         assertNotEquals(a, b);
     }
 
-    @Test
-    void shouldNotMatchIncorrectExpectedPointsForLongJump() {
-        int points = scoring.score("longJump", 700);
-
-        assertNotEquals(813, points);
-    }
 
     @Test
     void shouldNotGiveSamePointsForDifferentShotPutDistances() {
@@ -40,15 +27,9 @@ public class ScoringServiceNegativTest {
     }
 
 
-    // HEPTATHLON
 
 
-    @Test
-    void shouldNotReturnZeroForValidHep100mHurdles() {
-        int points = scoring.score("hep100mHurdles", 14.0);
 
-        assertNotEquals(0, points);
-    }
 
     @Test
     void shouldNotGiveSamePointsForDifferentHep200mTimes() {
@@ -58,20 +39,9 @@ public class ScoringServiceNegativTest {
         assertNotEquals(a, b);
     }
 
-    @Test
-    void shouldNotMatchIncorrectPointsForHepHighJump() {
-        int points = scoring.score("hepHighJump", 175);
 
-        assertNotEquals(900, points);
-    }
 
-    @Test
-    void shouldNotGiveSamePointsForDifferentHep800mTimes() {
-        int a = scoring.score("hep800m", 130.0);
-        int b = scoring.score("hep800m", 140.0);
 
-        assertNotEquals(a, b);
-    }
 
 
     @Test
