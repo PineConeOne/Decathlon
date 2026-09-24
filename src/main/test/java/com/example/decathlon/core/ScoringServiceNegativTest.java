@@ -1,7 +1,5 @@
 package com.example.decathlon.core;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 public class ScoringServiceNegativTest {
@@ -9,7 +7,7 @@ public class ScoringServiceNegativTest {
     private final ScoringService scoring = new ScoringService();
 
 
-    // DECATHLON (TIOKAMP)
+    // DECATHLON
 
     @Test
     void shouldNotReturnZeroForValid100mResult() {
@@ -42,7 +40,7 @@ public class ScoringServiceNegativTest {
     }
 
 
-    // HEPTATHLON (SJUKAMP)
+    // HEPTATHLON
 
 
     @Test
