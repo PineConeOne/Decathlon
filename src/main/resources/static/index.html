@@ -3,23 +3,32 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Decathlon Web MVP</title>
+    <title>Track and Field Calculator</title>
     <style>
-        body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+        body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
         .row { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; flex-wrap: wrap; }
         .card { border: 1px solid #ddd; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; }
         table { width: 100%; border-collapse: collapse; }
         th, td { border-bottom: 1px solid #eee; padding: .5rem; text-align: left; }
         #error { color: #b00020; }
+        h3 { margin-top: 0; }
     </style>
 </head>
 <body>
-<h1>Decathlon Web MVP</h1>
+<h1>Track and Field Calculator</h1>
+
+<div class="card">
+    <h2>Competition</h2>
+    <div class="row">
+        <label><input type="radio" name="group" id="groupDecathlon" data-testid="groupDecathlonRadio" value="Decathlon" checked /> Decathlon</label>
+        <label><input type="radio" name="group" id="groupHeptathlon" data-testid="groupHeptathlonRadio" value="Heptathlon" /> Heptathlon</label>
+    </div>
+</div>
 
 <div class="card">
     <h2>Add competitor</h2>
     <div class="row">
-        <label for="name">Name</label>
+        <label for="name">Enter Competitor's Name:</label>
         <input id="name" data-testid="competitorNameInput" placeholder="e.g., Anna" />
         <button id="add" data-testid="addCompetitorBtn">Add competitor</button>
     </div>
@@ -29,55 +38,68 @@
 <div class="card">
     <h2>Enter result</h2>
     <div class="row">
-        <label for="name2">Name</label>
+        <label for="name2">Competitor Name:</label>
         <input id="name2" placeholder="same as above" />
         <label for="event">Event</label>
-        <select id="event" data-testid="eventSelect">
-            <optgroup label="Decathlon (10-kamp)">
-                <option value="100m">100m (s)</option>
-                <option value="longJump">Long Jump (cm)</option>
-                <option value="shotPut">Shot Put (m)</option>
-                <option value="highJump">High Jump (cm)</option>
-                <option value="400m">400m (s)</option>
-                <option value="110mHurdles">110m Hurdles (s)</option>
-                <option value="discusThrow">Discus Throw (m)</option>
-                <option value="poleVault">Pole Vault (cm)</option>
-                <option value="javelinThrow">Javelin Throw (m)</option>
-                <option value="1500m">1500m (s)</option>
-            </optgroup>
-            <optgroup label="Heptathlon (7-kamp)">
-                <option value="hep100mHurdles">100m Hurdles (s)</option>
-                <option value="hepHighJump">High Jump (cm)</option>
-                <option value="hepShotPut">Shot Put (m)</option>
-                <option value="hep200m">200m (s)</option>
-                <option value="hepLongJump">Long Jump (cm)</option>
-                <option value="hepJavelinThrow">Javelin Throw (m)</option>
-                <option value="hep800m">800m (s)</option>
-            </optgroup>
-        </select>
-        <label for="raw">Result</label>
+        <select id="event" data-testid="eventSelect"></select>
+        <label for="raw">Enter Result:</label>
         <input id="raw" data-testid="rawInput" type="number" step="0.01" />
         <button id="save" data-testid="saveScoreBtn">Save score</button>
     </div>
     <div id="msg" aria-live="polite"></div>
 </div>
 
-<div class="card">
-    <h2>Standings</h2>
-    <table>
+<div class="card" id="decathlonSection">
+    <h3>Decathlon Standings</h3>
+    <table id="decathlonTable">
         <thead>
         <tr>
+            <th>Result position</th>
             <th>Name</th>
             <th>100m</th>
-            <th>Long Jump</th>
-            <th>Shot Put</th>
+            <th>110m hurdles</th>
             <th>400m</th>
-            <th>Total</th>
+            <th>1500m</th>
+            <th>Discus</th>
+            <th>High jump</th>
+            <th>Javelin</th>
+            <th>Long jump</th>
+            <th>Pole vault</th>
+            <th>Shot put</th>
+            <th>Total points</th>
         </tr>
         </thead>
-        <tbody id="standings" data-testid="standingsTable"></tbody>
+        <tbody data-testid="decathlonStandingsTable"></tbody>
     </table>
-    <button id="export" data-testid="exportCsvBtn">Export CSV</button>
+</div>
+
+<div class="card" id="heptathlonSection">
+    <h3>Heptathlon Standings</h3>
+    <table id="heptathlonTable">
+        <thead>
+        <tr>
+            <th>Result position</th>
+            <th>Name</th>
+            <th>110m hurdles</th>
+            <th>200m</th>
+            <th>800m</th>
+            <th>High jump</th>
+            <th>Javelin</th>
+            <th>Long jump</th>
+            <th>Shot put</th>
+            <th>Total points</th>
+        </tr>
+        </thead>
+        <tbody data-testid="heptathlonStandingsTable"></tbody>
+    </table>
+</div>
+
+<div class="card">
+    <div class="row">
+        <button id="export" data-testid="exportCsvBtn">Export CSV</button>
+        <label for="importFile">Import CSV</label>
+        <input type="file" id="importFile" accept=".csv" data-testid="importCsvInput" />
+    </div>
 </div>
 
 <script src="app.js" type="module"></script>
