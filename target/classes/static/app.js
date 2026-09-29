@@ -62,10 +62,11 @@ updateGroupVisibility();
 
 el('add').addEventListener('click', async () => {
   const name = el('name').value;
+  const competition = getSelectedGroup();
   try {
     const res = await fetch('/api/competitors', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name, competition })
     });
     if (!res.ok) {
       const t = await res.text();

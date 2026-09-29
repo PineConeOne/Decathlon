@@ -20,12 +20,14 @@ public class ApiController {
 
     @PostMapping("/competitors")
     public ResponseEntity<?> add(@RequestBody Map<String, String> body) {
-        String name = Optional.ofNullable(body.get("name")).orElse("").trim();
-        if (name.isEmpty()) {
-            return ResponseEntity.badRequest().body("Please enter a competitor's name.");
+        String name = Optional.ofNullable(body.get("name")).orElse("");
+        String competition = Optional.ofNullable(body.get("competition")).orElse("");
+        try {
+            comp.addCompetitor(name, competition);
+            return ResponseEntity.status(201).build();
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
         }
-        comp.addCompetitor(name);
-        return ResponseEntity.status(201).build();
     }
 
     @PostMapping("/score")
@@ -33,6 +35,8 @@ public class ApiController {
         try {
             int pts = comp.score(r.name(), r.event(), r.raw());
             return ResponseEntity.ok(Map.of("points", pts));
+        } catch (CompetitionService.CompetitorNotFoundException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
         } catch (CompetitionService.ScoreOutOfRangeException ex) {
             return ResponseEntity.badRequest().body(ex.getMessage());
         } catch (IllegalArgumentException ex) {
