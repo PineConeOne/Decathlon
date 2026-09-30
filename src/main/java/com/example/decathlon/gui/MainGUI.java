@@ -3,74 +3,29 @@ package com.example.decathlon.gui;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.util.LinkedHashMap;
-import java.util.List;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Map;
+import java.util.List;
 
-import com.example.decathlon.common.CalcTrackAndField;
+import com.example.decathlon.core.CompetitionService;
+import com.example.decathlon.core.ScoringService;
 
 public class MainGUI {
 
     private static final int MAX_COMPETITORS = 40;
 
-    private static class EventDef {
-        final String id;
-        final String menuLabel;
-        final String colLabel;
-        final boolean track;
-        final double a;
-        final double b;
-        final double c;
-        final double min;
-        final double max;
-
-        EventDef(String id, String menuLabel, String colLabel, boolean track,
-                 double a, double b, double c, double min, double max) {
-            this.id = id;
-            this.menuLabel = menuLabel;
-            this.colLabel = colLabel;
-            this.track = track;
-            this.a = a;
-            this.b = b;
-            this.c = c;
-            this.min = min;
-            this.max = max;
-        }
-    }
-
-    private static final EventDef[] DECA_EVENTS = new EventDef[]{
-            new EventDef("100m", "100m", "100m", true, 25.4347, 18.0, 1.81, 5, 17.8),
-            new EventDef("110mHurdles", "110m Hurdles", "110m hurdles", true, 5.74352, 28.5, 1.92, 10, 28.5),
-            new EventDef("400m", "400m", "400m", true, 1.53775, 82.0, 1.81, 20, 100),
-            new EventDef("1500m", "1500m", "1500m", true, 0.03768, 480.0, 18.5, 2, 7),
-            new EventDef("discusThrow", "Discus Throw", "Discus", false, 12.91, 4.0, 1.1, 0, 85),
-            new EventDef("highJump", "High Jump", "High jump", false, 0.8465, 75.0, 1.42, 0, 100),
-            new EventDef("javelinThrow", "Javelin Throw", "Javelin", false, 10.14, 7.0, 1.08, 0, 110),
-            new EventDef("longJump", "Long Jump", "Long jump", false, 0.13454, 220.0, 1.4, 250, 1000),
-            new EventDef("poleVault", "Pole Vault", "Pole vault", false, 0.2797, 100.0, 1.35, 2, 1000),
-            new EventDef("shotPut", "Shot Put", "Shot put", false, 51.39, 1.5, 1.05, 0, 30)
-    };
-
-    private static final EventDef[] HEP_EVENTS = new EventDef[]{
-            new EventDef("hep100mHurdles", "110m Hurdles", "110m hurdles", true, 9.23076, 26.7, 18.35, 5, 26.4),
-            new EventDef("hep200m", "200m", "200m", true, 4.99087, 42.5, 1.81, 14, 42.08),
-            new EventDef("hep800m", "800m", "800m", true, 0.11193, 254.0, 1.88, 70, 250.79),
-            new EventDef("hepHighJump", "High Jump", "High jump", false, 1.84523, 75.0, 1.348, 75.7, 270),
-            new EventDef("hepJavelinThrow", "Javelin Throw", "Javelin", false, 15.9803, 3.8, 1.04, 0, 100),
-            new EventDef("hepLongJump", "Long Jump", "Long jump", false, 0.1888807, 210.0, 1.41, 0, 400),
-            new EventDef("hepShotPut", "Shot Put", "Shot put", false, 56.0211, 1.5, 1.05, 5, 100)
-    };
-
-    private final CalcTrackAndField calc = new CalcTrackAndField();
-
-    private final List<String> competitorNames = new ArrayList<>();
-    private final Map<String, Map<String, Integer>> decaResults = new LinkedHashMap<>();
-    private final Map<String, Map<String, Integer>> hepResults = new LinkedHashMap<>();
+    private final ScoringService scoringService = new ScoringService();
+    private final CompetitionService competitionService = new CompetitionService(scoringService);
 
     private JTextField addNameField;
+    private JComboBox<String> addCompetitionBox;
     private JComboBox<String> competitorBox;
-    private JComboBox<String> groupBox;
     private JComboBox<String> disciplineBox;
     private JTextField resultField;
     private DefaultTableModel decaTableModel;
@@ -83,7 +38,7 @@ public class MainGUI {
     private void createAndShowGUI() {
         JFrame frame = new JFrame("Track and Field Calculator");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1000, 700);
+        frame.setSize(1000, 750);
         frame.setLayout(new BorderLayout(10, 10));
 
         JPanel top = new JPanel();
@@ -93,42 +48,42 @@ public class MainGUI {
 
         frame.add(top, BorderLayout.NORTH);
         frame.add(buildResultsTabs(), BorderLayout.CENTER);
+        frame.add(buildImportExportPanel(), BorderLayout.SOUTH);
 
         frame.setVisible(true);
     }
 
     private JPanel buildAddCompetitorPanel() {
-        JPanel panel = new JPanel(new GridLayout(1, 3, 5, 5));
+        JPanel panel = new JPanel(new GridLayout(1, 4, 5, 5));
         panel.setBorder(BorderFactory.createTitledBorder("Add competitor"));
 
         addNameField = new JTextField();
+        addCompetitionBox = new JComboBox<>(new String[]{"Decathlon", "Heptathlon"});
         JButton addButton = new JButton("Add Competitor");
         addButton.addActionListener(e -> onAddCompetitor());
 
         panel.add(new JLabel("Enter Competitor's Name:"));
         panel.add(addNameField);
+        panel.add(addCompetitionBox);
         panel.add(addButton);
 
         return panel;
     }
 
     private JPanel buildEnterResultPanel() {
-        JPanel panel = new JPanel(new GridLayout(5, 2, 5, 5));
+        JPanel panel = new JPanel(new GridLayout(4, 2, 5, 5));
         panel.setBorder(BorderFactory.createTitledBorder("Enter result"));
 
         competitorBox = new JComboBox<>();
-        groupBox = new JComboBox<>(new String[]{"Decathlon", "Heptathlon"});
         disciplineBox = new JComboBox<>();
         resultField = new JTextField();
         JButton calculateButton = new JButton("Calculate Score");
 
-        groupBox.addActionListener(e -> updateDisciplineBox());
+        competitorBox.addActionListener(e -> updateDisciplineBox());
         calculateButton.addActionListener(e -> onCalculateScore());
 
         panel.add(new JLabel("Competitor Name:"));
         panel.add(competitorBox);
-        panel.add(new JLabel("Select Group:"));
-        panel.add(groupBox);
         panel.add(new JLabel("Select Discipline:"));
         panel.add(disciplineBox);
         panel.add(new JLabel("Enter Result:"));
@@ -141,11 +96,27 @@ public class MainGUI {
         return panel;
     }
 
+    private JPanel buildImportExportPanel() {
+        JPanel panel = new JPanel(new GridLayout(1, 2, 5, 5));
+        panel.setBorder(BorderFactory.createTitledBorder("Import / Export"));
+
+        JButton exportButton = new JButton("Export CSV");
+        exportButton.addActionListener(e -> onExportCsv());
+
+        JButton importButton = new JButton("Import CSV");
+        importButton.addActionListener(e -> onImportCsv());
+
+        panel.add(exportButton);
+        panel.add(importButton);
+
+        return panel;
+    }
+
     private JTabbedPane buildResultsTabs() {
         JTabbedPane tabs = new JTabbedPane();
 
-        decaTableModel = createTableModel(DECA_EVENTS);
-        hepTableModel = createTableModel(HEP_EVENTS);
+        decaTableModel = createTableModel(ScoringService.DECATHLON_EVENTS);
+        hepTableModel = createTableModel(ScoringService.HEPTATHLON_EVENTS);
 
         JTable decaTable = new JTable(decaTableModel);
         JTable hepTable = new JTable(hepTableModel);
@@ -156,11 +127,11 @@ public class MainGUI {
         return tabs;
     }
 
-    private DefaultTableModel createTableModel(EventDef[] events) {
+    private DefaultTableModel createTableModel(List<ScoringService.EventDef> events) {
         List<String> columns = new ArrayList<>();
         columns.add("Result position");
         columns.add("Name");
-        for (EventDef ev : events) {
+        for (ScoringService.EventDef ev : events) {
             columns.add(ev.colLabel);
         }
         columns.add("Total points");
@@ -175,35 +146,48 @@ public class MainGUI {
 
     private void updateDisciplineBox() {
         disciplineBox.removeAllItems();
-        EventDef[] events = isDecathlon() ? DECA_EVENTS : HEP_EVENTS;
-        for (EventDef ev : events) {
+        String selectedName = (String) competitorBox.getSelectedItem();
+        String competition = selectedName == null ? null : competitionService.competitionOf(selectedName);
+        List<ScoringService.EventDef> events = "Heptathlon".equals(competition) ? ScoringService.HEPTATHLON_EVENTS : ScoringService.DECATHLON_EVENTS;
+        for (ScoringService.EventDef ev : events) {
             disciplineBox.addItem(ev.menuLabel);
         }
     }
 
-    private boolean isDecathlon() {
-        return "Decathlon".equals(groupBox.getSelectedItem());
-    }
-
     private void onAddCompetitor() {
-        String name = addNameField.getText().trim();
+        String name = addNameField.getText();
+        String competition = (String) addCompetitionBox.getSelectedItem();
+        String trimmedName = name == null ? "" : name.trim();
 
-        if (name.isEmpty()) {
-            JOptionPane.showMessageDialog(null, "Please enter a competitor's name.", "Invalid Input", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        if (competitorNames.size() >= MAX_COMPETITORS) {
+        if (competitionService.competitionOf(trimmedName) == null && competitionService.competitorCount() >= MAX_COMPETITORS) {
             JOptionPane.showMessageDialog(null, "Maximum of 40 competitors reached.", "Limit Reached", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        if (!competitorNames.contains(name)) {
-            competitorNames.add(name);
-            competitorBox.addItem(name);
+        try {
+            competitionService.addCompetitor(name, competition);
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(null, ex.getMessage(), "Invalid Input", JOptionPane.ERROR_MESSAGE);
+            return;
         }
 
+        refreshCompetitorBox();
         addNameField.setText("");
+    }
+
+    private void refreshCompetitorBox() {
+        String previouslySelected = (String) competitorBox.getSelectedItem();
+        competitorBox.removeAllItems();
+        List<String> names = new ArrayList<>();
+        names.addAll(competitionService.competitorNamesForCompetition("Decathlon"));
+        names.addAll(competitionService.competitorNamesForCompetition("Heptathlon"));
+        for (String name : names) {
+            competitorBox.addItem(name);
+        }
+        if (previouslySelected != null && names.contains(previouslySelected)) {
+            competitorBox.setSelectedItem(previouslySelected);
+        }
+        updateDisciplineBox();
     }
 
     private void onCalculateScore() {
@@ -213,11 +197,11 @@ public class MainGUI {
             return;
         }
 
-        boolean decathlon = isDecathlon();
-        EventDef[] events = decathlon ? DECA_EVENTS : HEP_EVENTS;
+        String competition = competitionService.competitionOf(name);
+        List<ScoringService.EventDef> events = "Heptathlon".equals(competition) ? ScoringService.HEPTATHLON_EVENTS : ScoringService.DECATHLON_EVENTS;
         String menuLabel = (String) disciplineBox.getSelectedItem();
-        EventDef event = null;
-        for (EventDef ev : events) {
+        ScoringService.EventDef event = null;
+        for (ScoringService.EventDef ev : events) {
             if (ev.menuLabel.equals(menuLabel)) {
                 event = ev;
                 break;
@@ -235,60 +219,75 @@ public class MainGUI {
             return;
         }
 
-        if (raw < event.min) {
-            JOptionPane.showMessageDialog(null, "Value too low for " + event.menuLabel + ". Minimum accepted value is " + event.min + ".", "Value Too Low", JOptionPane.ERROR_MESSAGE);
+        try {
+            competitionService.score(name, event.id, raw);
+        } catch (CompetitionService.CompetitorNotFoundException ex) {
+            JOptionPane.showMessageDialog(null, ex.getMessage(), "Competitor Not Found", JOptionPane.ERROR_MESSAGE);
+            return;
+        } catch (CompetitionService.ScoreOutOfRangeException ex) {
+            JOptionPane.showMessageDialog(null, ex.getMessage(), "Value Out Of Range", JOptionPane.ERROR_MESSAGE);
+            return;
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(null, ex.getMessage(), "Invalid Input", JOptionPane.ERROR_MESSAGE);
             return;
         }
-
-        if (raw > event.max) {
-            JOptionPane.showMessageDialog(null, "Value too high for " + event.menuLabel + ". Maximum accepted value is " + event.max + ".", "Value Too High", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        int score = event.track
-                ? calc.calculateTrack(event.a, event.b, event.c, raw)
-                : calc.calculateField(event.a, event.b, event.c, raw);
-
-        Map<String, Map<String, Integer>> store = decathlon ? decaResults : hepResults;
-        store.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(event.id, score);
 
         resultField.setText("");
-
-        refreshTable(decathlon);
+        refreshTables();
     }
 
-    private void refreshTable(boolean decathlon) {
-        EventDef[] events = decathlon ? DECA_EVENTS : HEP_EVENTS;
-        Map<String, Map<String, Integer>> store = decathlon ? decaResults : hepResults;
-        DefaultTableModel model = decathlon ? decaTableModel : hepTableModel;
+    private void refreshTables() {
+        refreshTable(decaTableModel, ScoringService.DECATHLON_EVENTS);
+        refreshTable(hepTableModel, ScoringService.HEPTATHLON_EVENTS);
+    }
 
-        List<Object[]> rows = new ArrayList<>();
-        for (Map.Entry<String, Map<String, Integer>> entry : store.entrySet()) {
-            String name = entry.getKey();
-            Map<String, Integer> scores = entry.getValue();
-
-            Object[] row = new Object[3 + events.length];
-            row[1] = name;
-
-            int total = 0;
-            for (int i = 0; i < events.length; i++) {
-                Integer p = scores.get(events[i].id);
-                row[2 + i] = p == null ? "" : p;
-                if (p != null) {
-                    total += p;
-                }
-            }
-            row[2 + events.length] = total;
-            rows.add(row);
-        }
-
-        rows.sort((r1, r2) -> (Integer) r2[2 + events.length] - (Integer) r1[2 + events.length]);
-
+    private void refreshTable(DefaultTableModel model, List<ScoringService.EventDef> events) {
         model.setRowCount(0);
-        int position = 1;
-        for (Object[] row : rows) {
-            row[0] = position++;
-            model.addRow(row);
+        for (CompetitionService.StandingRow row : competitionService.standingsFor(events)) {
+            Object[] rowData = new Object[3 + events.size()];
+            rowData[0] = row.position;
+            rowData[1] = row.name;
+            for (int i = 0; i < events.size(); i++) {
+                Integer p = row.scores.get(events.get(i).id);
+                rowData[2 + i] = p == null ? "" : p;
+            }
+            rowData[2 + events.size()] = row.total;
+            model.addRow(rowData);
         }
+    }
+
+    private void onExportCsv() {
+        JFileChooser chooser = new JFileChooser();
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+        chooser.setSelectedFile(new File("results-" + timestamp + ".csv"));
+        int result = chooser.showSaveDialog(null);
+        if (result != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        Path path = chooser.getSelectedFile().toPath();
+        try {
+            Files.writeString(path, competitionService.exportCsv(), StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(null, "Export failed: " + ex.getMessage(), "Export Failed", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void onImportCsv() {
+        JFileChooser chooser = new JFileChooser();
+        int result = chooser.showOpenDialog(null);
+        if (result != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        Path path = chooser.getSelectedFile().toPath();
+        String csv;
+        try {
+            csv = Files.readString(path, StandardCharsets.UTF_8);
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(null, "Import failed: " + ex.getMessage(), "Import Failed", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        competitionService.importCsv(csv);
+        refreshCompetitorBox();
+        refreshTables();
     }
 }
