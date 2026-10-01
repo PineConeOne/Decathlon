@@ -12,9 +12,9 @@ public class CompetitionServiceTest {
    @Test
     void addOneCompetitorSuccessful(){
        //CompetitionService competitionService = new CompetitionService(scoring);
-       competitionService.addCompetitor("Staffan Staffansson");
+       competitionService.addCompetitor("Staffan Staffansson", "Decathlon");
        int expected = 1;
-       int actual = competitionService.competitorNames().size();
+       int actual = competitionService.competitorCount();
 
        assertEquals(expected,actual);
    }
@@ -24,9 +24,9 @@ public class CompetitionServiceTest {
         int expectedNumberOfCompetitors = 10;
 
         for (int i = 1; i<= expectedNumberOfCompetitors; i++){
-            competitionService.addCompetitor("Deltagare" + i);
+            competitionService.addCompetitor("Deltagare" + i, "Decathlon");
         }
-        int actualNumberOfCpompetitors = competitionService.competitorNames().size();
+        int actualNumberOfCpompetitors = competitionService.competitorCount();
        System.out.println("Number of competitors added :"+actualNumberOfCpompetitors);
 
         assertEquals(expectedNumberOfCompetitors, actualNumberOfCpompetitors);
@@ -36,9 +36,9 @@ public class CompetitionServiceTest {
         int expectedNumberOfCompetitors = 40;
 
         for (int i = 1; i<= expectedNumberOfCompetitors; i++){
-            competitionService.addCompetitor("Deltagare" + i);
+            competitionService.addCompetitor("Deltagare" + i, "Decathlon");
         }
-        int actualNumberOfCpompetitors = competitionService.competitorNames().size();
+        int actualNumberOfCpompetitors = competitionService.competitorCount();
         System.out.println("Number of competitors added :"+actualNumberOfCpompetitors);
 
         assertEquals(expectedNumberOfCompetitors, actualNumberOfCpompetitors);
@@ -48,14 +48,14 @@ public class CompetitionServiceTest {
     void adding41competitorsNotAllowed(){
         int expectedNumberOfCompetitors = 40;
         for (int i = 1; i<= 40; i++){
-            competitionService.addCompetitor("Deltagare" + i);
+            competitionService.addCompetitor("Deltagare" + i, "Decathlon");
         }
 
-        competitionService.addCompetitor("Deltagare 41");  // Går det att lägga till 41:a deltageren?
+        competitionService.addCompetitor("Deltagare 41", "Decathlon");  // Går det att lägga till 41:a deltageren?
 
         String expectedMessage = "Maximum number of competitor is already saved";
 
-        int actualNumberOfCompetitors = competitionService.competitorNames().size();
+        int actualNumberOfCompetitors = competitionService.competitorCount();
 
         assertEquals(expectedNumberOfCompetitors, actualNumberOfCompetitors,expectedMessage);
     }
