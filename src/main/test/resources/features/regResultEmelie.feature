@@ -26,7 +26,7 @@ Feature: registrera resultat för alla grenar i decathlon & heptathlon
     | Anna  | heptathlon  | 179    | hep800m         | 375    |
 
 
-Scenario Outline: För höga värden, just utanför limits, ska ge felmeddelande
+Scenario Outline: För höga resultat, just utanför limits, ska ge felmeddelande
   Given typ of competition "<competition>" is chosed and a "<name>" is registered
   When I enter result "<result>" for event "<event>"
   Then I get the message "<text>"
