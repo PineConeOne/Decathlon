@@ -18,6 +18,7 @@
 #      - name: Build and test
 #        run: mvn clean install
 
+
 name: Kör tester
 
 on:
@@ -42,4 +43,4 @@ jobs:
           cache: maven
 
       - name: Kör testerna
-        run: mvn -B test
+        run: mvn clean install
