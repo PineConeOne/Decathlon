@@ -6,6 +6,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -20,12 +21,24 @@ public class ApiController {
 
     @PostMapping("/competitors")
     public ResponseEntity<?> add(@RequestBody Map<String, String> body) {
-        String name = Optional.ofNullable(body.get("name")).orElse("").trim();
-        if (name.isEmpty()) {
-            return ResponseEntity.badRequest().body("Please enter a competitor's name.");
+        String name = Optional.ofNullable(body.get("name")).orElse("");
+        String competition = Optional.ofNullable(body.get("competition")).orElse("");
+        try {
+            comp.addCompetitor(name, competition);
+            return ResponseEntity.status(201).build();
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
         }
-        comp.addCompetitor(name);
-        return ResponseEntity.status(201).build();
+    }
+
+    @GetMapping("/competitors")
+    public ResponseEntity<?> competitors(@RequestParam String competition) {
+        try {
+            List<String> names = comp.competitorNamesSortedForCompetition(competition);
+            return ResponseEntity.ok(names);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
     }
 
     @PostMapping("/score")
@@ -33,7 +46,23 @@ public class ApiController {
         try {
             int pts = comp.score(r.name(), r.event(), r.raw());
             return ResponseEntity.ok(Map.of("points", pts));
+        } catch (CompetitionService.CompetitorNotFoundException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
         } catch (CompetitionService.ScoreOutOfRangeException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
+    @PostMapping("/score/invalid")
+    public ResponseEntity<?> invalidResult(@RequestBody Map<String, String> body) {
+        String name = Optional.ofNullable(body.get("name")).orElse("");
+        String event = Optional.ofNullable(body.get("event")).orElse("");
+        try {
+            comp.invalidResult(name, event);
+            return ResponseEntity.ok().build();
+        } catch (CompetitionService.CompetitorNotFoundException ex) {
             return ResponseEntity.badRequest().body(ex.getMessage());
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(ex.getMessage());
@@ -52,7 +81,11 @@ public class ApiController {
 
     @PostMapping(value = "/import", consumes = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<?> importCsv(@RequestBody String csv) {
-        comp.importCsv(csv);
-        return ResponseEntity.ok().build();
+        try {
+            comp.importCsv(csv);
+            return ResponseEntity.ok().build();
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
     }
 }

@@ -10,6 +10,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class CompetitionService {
+    public static final int MAX_COMPETITORS = 40;
+
     private final ScoringService scoring;
 
     public CompetitionService(ScoringService scoring) {
@@ -22,12 +24,20 @@ public class CompetitionService {
         }
     }
 
+    public static class CompetitorNotFoundException extends RuntimeException {
+        public CompetitorNotFoundException(String message) {
+            super(message);
+        }
+    }
+
     public static class Competitor {
         public final String name;
+        public final String competition;
         public final Map<String, Integer> points = new ConcurrentHashMap<>();
 
-        public Competitor(String name) {
+        public Competitor(String name, String competition) {
             this.name = name;
+            this.competition = competition;
         }
 
         public int total(List<ScoringService.EventDef> events) {
@@ -42,22 +52,97 @@ public class CompetitionService {
         }
     }
 
-    private final Map<String, Competitor> competitors = new LinkedHashMap<>();
+    public static final class StandingRow {
+        public final int position;
+        public final String name;
+        public final Map<String, Integer> scores;
+        public final int total;
 
-    public synchronized void addCompetitor(String name) {
-        if (!competitors.containsKey(name)) {
-            competitors.put(name, new Competitor(name));
+        public StandingRow(int position, String name, Map<String, Integer> scores, int total) {
+            this.position = position;
+            this.name = name;
+            this.scores = scores;
+            this.total = total;
         }
     }
 
-    public synchronized List<String> competitorNames() {
-        return new ArrayList<>(competitors.keySet());
+    private final Map<String, Competitor> competitors = new LinkedHashMap<>();
+
+    public synchronized void addCompetitor(String name, String competition) {
+        String trimmedName = name == null ? "" : name.trim();
+        if (trimmedName.isEmpty()) {
+            throw new IllegalArgumentException("Please enter a competitor's name.");
+        }
+        String normalizedCompetition = normalizeCompetition(competition);
+        Competitor existing = competitors.get(trimmedName);
+        if (existing != null) {
+            if (!existing.competition.equals(normalizedCompetition)) {
+                throw new IllegalArgumentException("Competitor \"" + trimmedName + "\" is already registered for " + existing.competition + ".");
+            }
+            return;
+        }
+        if (competitors.size() >= MAX_COMPETITORS) {
+            throw new IllegalArgumentException("Maximum of " + MAX_COMPETITORS + " competitors reached.");
+        }
+        competitors.put(trimmedName, new Competitor(trimmedName, normalizedCompetition));
+    }
+
+    private String normalizeCompetition(String competition) {
+        if (competition == null) {
+            throw new IllegalArgumentException("Competition must be either \"Decathlon\" or \"Heptathlon\".");
+        }
+        String trimmed = competition.trim();
+        if (trimmed.equalsIgnoreCase("Decathlon")) {
+            return "Decathlon";
+        }
+        if (trimmed.equalsIgnoreCase("Heptathlon")) {
+            return "Heptathlon";
+        }
+        throw new IllegalArgumentException("Competition must be either \"Decathlon\" or \"Heptathlon\".");
+    }
+
+    public synchronized int competitorCount() {
+        return competitors.size();
+    }
+
+    public synchronized String competitionOf(String name) {
+        Competitor c = competitors.get(name);
+        return c == null ? null : c.competition;
+    }
+
+    public synchronized List<String> competitorNamesForCompetition(String competition) {
+        List<String> names = new ArrayList<>();
+        for (Competitor c : competitors.values()) {
+            if (c.competition.equals(competition)) {
+                names.add(c.name);
+            }
+        }
+        return names;
+    }
+
+    public synchronized List<String> competitorNamesSortedForCompetition(String competition) {
+        String normalized = normalizeCompetition(competition);
+        List<String> names = competitorNamesForCompetition(normalized);
+        names.sort(String.CASE_INSENSITIVE_ORDER);
+        return names;
+    }
+
+    private String competitionOfEvent(ScoringService.EventDef def) {
+        return ScoringService.HEPTATHLON_EVENTS.contains(def) ? "Heptathlon" : "Decathlon";
     }
 
     public synchronized int score(String name, String eventId, double raw) {
+        Competitor c = competitors.get(name);
+        if (c == null) {
+            throw new CompetitorNotFoundException("Competitor \"" + name + "\" is not registered. Add the competitor before submitting a result.");
+        }
         ScoringService.EventDef def = scoring.get(eventId);
         if (def == null) {
             throw new IllegalArgumentException("Unknown event.");
+        }
+        String eventCompetition = competitionOfEvent(def);
+        if (!eventCompetition.equals(c.competition)) {
+            throw new IllegalArgumentException("Competitor \"" + name + "\" is registered for " + c.competition + ", not " + eventCompetition + ".");
         }
         if (raw < def.min) {
             throw new ScoreOutOfRangeException("Value too low for " + def.colLabel + ". Minimum accepted value is " + def.min + ".");
@@ -65,32 +150,41 @@ public class CompetitionService {
         if (raw > def.max) {
             throw new ScoreOutOfRangeException("Value too high for " + def.colLabel + ". Maximum accepted value is " + def.max + ".");
         }
-        Competitor c = competitors.computeIfAbsent(name, Competitor::new);
         int pts = scoring.score(eventId, raw);
         c.points.put(eventId, pts);
         return pts;
     }
 
-    public synchronized void setScore(String name, String eventId, int points) {
-        Competitor c = competitors.computeIfAbsent(name, Competitor::new);
-        c.points.put(eventId, points);
+    public synchronized void invalidResult(String name, String eventId) {
+        Competitor c = competitors.get(name);
+        if (c == null) {
+            throw new CompetitorNotFoundException("Competitor \"" + name + "\" is not registered. Add the competitor before submitting a result.");
+        }
+        ScoringService.EventDef def = scoring.get(eventId);
+        if (def == null) {
+            throw new IllegalArgumentException("Unknown event.");
+        }
+        String eventCompetition = competitionOfEvent(def);
+        if (!eventCompetition.equals(c.competition)) {
+            throw new IllegalArgumentException("Competitor \"" + name + "\" is registered for " + c.competition + ", not " + eventCompetition + ".");
+        }
+        c.points.put(eventId, 0);
     }
 
-    private synchronized Map<String, Object> groupStandings(List<ScoringService.EventDef> events) {
-        List<Map<String, Object>> rows = new ArrayList<>();
+    public synchronized void setScore(String name, String eventId, int points) {
+        Competitor c = competitors.get(name);
+        if (c != null) {
+            c.points.put(eventId, points);
+        }
+    }
+
+    public synchronized List<StandingRow> standingsFor(List<ScoringService.EventDef> events) {
+        String targetCompetition = events == ScoringService.HEPTATHLON_EVENTS ? "Heptathlon" : "Decathlon";
+        List<StandingRow> rows = new ArrayList<>();
         for (Competitor c : competitors.values()) {
-            boolean hasAny = false;
-            for (ScoringService.EventDef e : events) {
-                if (c.points.containsKey(e.id)) {
-                    hasAny = true;
-                    break;
-                }
-            }
-            if (!hasAny) {
+            if (!c.competition.equals(targetCompetition)) {
                 continue;
             }
-            Map<String, Object> row = new LinkedHashMap<>();
-            row.put("name", c.name);
             Map<String, Integer> scores = new LinkedHashMap<>();
             for (ScoringService.EventDef e : events) {
                 Integer p = c.points.get(e.id);
@@ -98,14 +192,26 @@ public class CompetitionService {
                     scores.put(e.id, p);
                 }
             }
-            row.put("scores", scores);
-            row.put("total", c.total(events));
-            rows.add(row);
+            rows.add(new StandingRow(0, c.name, scores, c.total(events)));
         }
-        rows.sort((r1, r2) -> (Integer) r2.get("total") - (Integer) r1.get("total"));
+        rows.sort((r1, r2) -> r2.total - r1.total);
+        List<StandingRow> positioned = new ArrayList<>();
         int position = 1;
-        for (Map<String, Object> row : rows) {
-            row.put("position", position++);
+        for (StandingRow r : rows) {
+            positioned.add(new StandingRow(position++, r.name, r.scores, r.total));
+        }
+        return positioned;
+    }
+
+    private Map<String, Object> standingsMapFor(List<ScoringService.EventDef> events) {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (StandingRow r : standingsFor(events)) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("position", r.position);
+            row.put("name", r.name);
+            row.put("scores", r.scores);
+            row.put("total", r.total);
+            rows.add(row);
         }
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("rows", rows);
@@ -114,8 +220,8 @@ public class CompetitionService {
 
     public synchronized Map<String, Object> standings() {
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("decathlon", groupStandings(ScoringService.DECATHLON_EVENTS));
-        result.put("heptathlon", groupStandings(ScoringService.HEPTATHLON_EVENTS));
+        result.put("decathlon", standingsMapFor(ScoringService.DECATHLON_EVENTS));
+        result.put("heptathlon", standingsMapFor(ScoringService.HEPTATHLON_EVENTS));
         return result;
     }
 
@@ -136,50 +242,57 @@ public class CompetitionService {
         }
         header.add("Total points");
         sb.append(String.join(",", header)).append("\n");
-        for (Competitor c : competitors.values()) {
-            boolean hasAny = false;
-            for (ScoringService.EventDef e : events) {
-                if (c.points.containsKey(e.id)) {
-                    hasAny = true;
-                    break;
-                }
-            }
-            if (!hasAny) {
-                continue;
-            }
+        for (StandingRow r : standingsFor(events)) {
             List<String> row = new ArrayList<>();
-            row.add(c.name);
-            int total = 0;
+            row.add(r.name);
             for (ScoringService.EventDef e : events) {
-                Integer p = c.points.get(e.id);
+                Integer p = r.scores.get(e.id);
                 row.add(p == null ? "" : String.valueOf(p));
-                if (p != null) {
-                    total += p;
-                }
             }
-            row.add(String.valueOf(total));
+            row.add(String.valueOf(r.total));
             sb.append(String.join(",", row)).append("\n");
+        }
+    }
+
+    private static final class PendingCompetitor {
+        final String name;
+        final String competition;
+        final Map<String, Integer> points;
+
+        PendingCompetitor(String name, String competition, Map<String, Integer> points) {
+            this.name = name;
+            this.competition = competition;
+            this.points = points;
         }
     }
 
     public synchronized void importCsv(String csv) {
         String[] lines = csv.split("\r?\n");
+        List<PendingCompetitor> pending = new ArrayList<>();
         List<ScoringService.EventDef> currentEvents = null;
+        String currentCompetition = null;
         String[] currentHeader = null;
+        boolean sawAnySection = false;
+
         for (String line : lines) {
             if (line.isBlank()) {
                 currentEvents = null;
+                currentCompetition = null;
                 currentHeader = null;
                 continue;
             }
             if (line.equals("Decathlon")) {
                 currentEvents = ScoringService.DECATHLON_EVENTS;
+                currentCompetition = "Decathlon";
                 currentHeader = null;
+                sawAnySection = true;
                 continue;
             }
             if (line.equals("Heptathlon")) {
                 currentEvents = ScoringService.HEPTATHLON_EVENTS;
+                currentCompetition = "Heptathlon";
                 currentHeader = null;
+                sawAnySection = true;
                 continue;
             }
             if (currentEvents == null) {
@@ -187,6 +300,9 @@ public class CompetitionService {
             }
             if (currentHeader == null) {
                 currentHeader = line.split(",", -1);
+                if (currentHeader.length == 0 || !currentHeader[0].trim().equals("Name")) {
+                    throw new IllegalArgumentException("The file is corrupt: expected a header row starting with \"Name\".");
+                }
                 continue;
             }
             String[] cells = line.split(",", -1);
@@ -197,7 +313,7 @@ public class CompetitionService {
             if (name.isEmpty()) {
                 continue;
             }
-            addCompetitor(name);
+            Map<String, Integer> points = new LinkedHashMap<>();
             for (int i = 1; i < cells.length - 1 && i < currentHeader.length - 1; i++) {
                 String value = cells[i].trim();
                 if (value.isEmpty()) {
@@ -206,13 +322,34 @@ public class CompetitionService {
                 String label = currentHeader[i].trim();
                 ScoringService.EventDef def = findByLabel(currentEvents, label);
                 if (def == null) {
-                    continue;
+                    throw new IllegalArgumentException("The file is corrupt: unknown column \"" + label + "\".");
                 }
+                int parsed;
                 try {
-                    int points = Integer.parseInt(value);
-                    setScore(name, def.id, points);
-                } catch (NumberFormatException ignored) {
+                    parsed = Integer.parseInt(value);
+                } catch (NumberFormatException ex) {
+                    throw new IllegalArgumentException("The file is corrupt: \"" + value + "\" is not a valid score for " + def.colLabel + ".");
                 }
+                int maxPossible = def.track ? scoring.score(def.id, def.min) : scoring.score(def.id, def.max);
+                if (parsed < 0 || parsed > maxPossible) {
+                    throw new IllegalArgumentException("The file is corrupt: the score " + parsed + " for " + def.colLabel + " is not possible.");
+                }
+                points.put(def.id, parsed);
+            }
+            pending.add(new PendingCompetitor(name, currentCompetition, points));
+        }
+
+        if (!sawAnySection) {
+            throw new IllegalArgumentException("The file is corrupt: it does not contain Decathlon or Heptathlon data.");
+        }
+
+        for (PendingCompetitor p : pending) {
+            try {
+                addCompetitor(p.name, p.competition);
+            } catch (IllegalArgumentException ignored) {
+            }
+            for (Map.Entry<String, Integer> entry : p.points.entrySet()) {
+                setScore(p.name, entry.getKey(), entry.getValue());
             }
         }
     }

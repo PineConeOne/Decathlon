@@ -6,41 +6,44 @@ function setError(text) { err.textContent = text; }
 function clearError() { err.textContent = ''; }
 function setMsg(text) { msg.textContent = text; }
 
+const params = new URLSearchParams(window.location.search);
+const rawCompetition = params.get('competition');
+if (rawCompetition !== 'Decathlon' && rawCompetition !== 'Heptathlon') {
+  window.location.href = 'index.html';
+}
+const SELECTED_GROUP = rawCompetition === 'Heptathlon' ? 'Heptathlon' : 'Decathlon';
+
 const DECATHLON_EVENTS = [
   { id: '100m', menuLabel: '100m (s)' },
-  { id: '110mHurdles', menuLabel: '110m Hurdles (s)' },
-  { id: '400m', menuLabel: '400m (s)' },
-  { id: '1500m', menuLabel: '1500m (s)' },
-  { id: 'discusThrow', menuLabel: 'Discus Throw (m)' },
-  { id: 'highJump', menuLabel: 'High Jump (cm)' },
-  { id: 'javelinThrow', menuLabel: 'Javelin Throw (m)' },
   { id: 'longJump', menuLabel: 'Long Jump (cm)' },
+  { id: 'shotPut', menuLabel: 'Shot Put (m)' },
+  { id: 'highJump', menuLabel: 'High Jump (cm)' },
+  { id: '400m', menuLabel: '400m (s)' },
+  { id: '110mHurdles', menuLabel: '110m Hurdles (s)' },
+  { id: 'discusThrow', menuLabel: 'Discus Throw (m)' },
   { id: 'poleVault', menuLabel: 'Pole Vault (cm)' },
-  { id: 'shotPut', menuLabel: 'Shot Put (m)' }
+  { id: 'javelinThrow', menuLabel: 'Javelin Throw (m)' },
+  { id: '1500m', menuLabel: '1500m (s)' }
 ];
 
 const HEPTATHLON_EVENTS = [
   { id: 'hep100mHurdles', menuLabel: '100m Hurdles (s)' },
-  { id: 'hep200m', menuLabel: '200m (s)' },
-  { id: 'hep800m', menuLabel: '800m (s)' },
   { id: 'hepHighJump', menuLabel: 'High Jump (cm)' },
-  { id: 'hepJavelinThrow', menuLabel: 'Javelin Throw (m)' },
+  { id: 'hepShotPut', menuLabel: 'Shot Put (m)' },
+  { id: 'hep200m', menuLabel: '200m (s)' },
   { id: 'hepLongJump', menuLabel: 'Long Jump (cm)' },
-  { id: 'hepShotPut', menuLabel: 'Shot Put (m)' }
+  { id: 'hepJavelinThrow', menuLabel: 'Javelin Throw (m)' },
+  { id: 'hep800m', menuLabel: '800m (s)' }
 ];
 
 function eventsForGroup(group) {
   return group === 'Heptathlon' ? HEPTATHLON_EVENTS : DECATHLON_EVENTS;
 }
 
-function getSelectedGroup() {
-  return document.querySelector('input[name="group"]:checked').value;
-}
-
 function populateEventSelect() {
   const select = el('event');
   select.innerHTML = '';
-  eventsForGroup(getSelectedGroup()).forEach(ev => {
+  eventsForGroup(SELECTED_GROUP).forEach(ev => {
     const opt = document.createElement('option');
     opt.value = ev.id;
     opt.textContent = ev.menuLabel;
@@ -49,23 +52,46 @@ function populateEventSelect() {
 }
 
 function updateGroupVisibility() {
-  const group = getSelectedGroup();
-  el('decathlonSection').style.display = group === 'Decathlon' ? '' : 'none';
-  el('heptathlonSection').style.display = group === 'Heptathlon' ? '' : 'none';
+  el('decathlonSection').style.display = SELECTED_GROUP === 'Decathlon' ? '' : 'none';
+  el('heptathlonSection').style.display = SELECTED_GROUP === 'Heptathlon' ? '' : 'none';
+  el('competitionLabel').textContent = SELECTED_GROUP;
+  el('competitionLabel2').textContent = SELECTED_GROUP;
   populateEventSelect();
 }
 
-document.querySelectorAll('input[name="group"]').forEach(radio => {
-  radio.addEventListener('change', updateGroupVisibility);
-});
 updateGroupVisibility();
+
+async function refreshCompetitorSelect() {
+  const select = el('name2');
+  const previouslySelected = select.value;
+  try {
+    const res = await fetch(`/api/competitors?competition=${encodeURIComponent(SELECTED_GROUP)}`);
+    if (!res.ok) {
+      return;
+    }
+    const names = await res.json();
+    select.innerHTML = '';
+    names.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+    if (names.includes(previouslySelected)) {
+      select.value = previouslySelected;
+    }
+  } catch (e) {
+    // leave the existing list in place
+  }
+}
 
 el('add').addEventListener('click', async () => {
   const name = el('name').value;
+  const competition = SELECTED_GROUP;
   try {
     const res = await fetch('/api/competitors', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
+      body: JSON.stringify({ name, competition })
     });
     if (!res.ok) {
       const t = await res.text();
@@ -100,6 +126,29 @@ el('save').addEventListener('click', async () => {
     const json = await res.json();
     clearError();
     setMsg(`Saved: ${json.points} pts`);
+    await renderStandings();
+  } catch (e) {
+    setError('Score failed');
+  }
+});
+
+el('noValidResult').addEventListener('click', async () => {
+  const body = {
+    name: el('name2').value,
+    event: el('event').value
+  };
+  try {
+    const res = await fetch('/api/score/invalid', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      setError(t || 'Failed to save result');
+      return;
+    }
+    clearError();
+    setMsg('Saved: 0 pts (no valid result)');
     await renderStandings();
   } catch (e) {
     setError('Score failed');
@@ -159,7 +208,8 @@ el('importFile').addEventListener('change', async (event) => {
       body: text
     });
     if (!res.ok) {
-      setError('Import failed');
+      const t = await res.text();
+      setError(t || 'Import failed: the file is corrupt.');
       return;
     }
     clearError();
@@ -197,6 +247,7 @@ async function renderStandings() {
   } catch (e) {
     setError('Could not load standings');
   }
+  await refreshCompetitorSelect();
 }
 
 function escapeHtml(s) {
