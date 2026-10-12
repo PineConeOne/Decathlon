@@ -81,7 +81,7 @@ async function refreshCompetitorSelect() {
       select.value = previouslySelected;
     }
   } catch (e) {
-    // leave the existing list in place
+    return;
   }
 }
 

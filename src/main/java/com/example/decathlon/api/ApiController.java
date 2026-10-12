@@ -32,7 +32,7 @@ public class ApiController {
     }
 
     @GetMapping("/competitors")
-    public ResponseEntity<?> competitors(@RequestParam String competition) {
+    public ResponseEntity<?> competitors(@RequestParam("competition") String competition) {
         try {
             List<String> names = comp.competitorNamesSortedForCompetition(competition);
             return ResponseEntity.ok(names);
