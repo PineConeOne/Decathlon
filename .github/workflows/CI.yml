@@ -19,13 +19,9 @@
 #        run: mvn clean install
 
 
-name: Kör tester
+name: CI
 
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+on: [push, pull_request]
 
 jobs:
   test:
