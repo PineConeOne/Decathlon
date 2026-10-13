@@ -10,6 +10,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class CompetitionService {
+    public static final int MAX_COMPETITORS = 40;
+
     private final ScoringService scoring;
 
     public CompetitionService(ScoringService scoring) {
@@ -79,6 +81,9 @@ public class CompetitionService {
             }
             return;
         }
+        if (competitors.size() >= MAX_COMPETITORS) {
+            throw new IllegalArgumentException("Maximum of " + MAX_COMPETITORS + " competitors reached.");
+        }
         competitors.put(trimmedName, new Competitor(trimmedName, normalizedCompetition));
     }
 
@@ -115,6 +120,17 @@ public class CompetitionService {
         return names;
     }
 
+    public synchronized List<String> competitorNamesSortedForCompetition(String competition) {
+        String normalized = normalizeCompetition(competition);
+        List<String> names = competitorNamesForCompetition(normalized);
+        names.sort(String.CASE_INSENSITIVE_ORDER);
+        return names;
+    }
+
+    private String competitionOfEvent(ScoringService.EventDef def) {
+        return ScoringService.HEPTATHLON_EVENTS.contains(def) ? "Heptathlon" : "Decathlon";
+    }
+
     public synchronized int score(String name, String eventId, double raw) {
         Competitor c = competitors.get(name);
         if (c == null) {
@@ -124,7 +140,7 @@ public class CompetitionService {
         if (def == null) {
             throw new IllegalArgumentException("Unknown event.");
         }
-        String eventCompetition = ScoringService.HEPTATHLON_EVENTS.contains(def) ? "Heptathlon" : "Decathlon";
+        String eventCompetition = competitionOfEvent(def);
         if (!eventCompetition.equals(c.competition)) {
             throw new IllegalArgumentException("Competitor \"" + name + "\" is registered for " + c.competition + ", not " + eventCompetition + ".");
         }
@@ -139,6 +155,22 @@ public class CompetitionService {
         return pts;
     }
 
+    public synchronized void invalidResult(String name, String eventId) {
+        Competitor c = competitors.get(name);
+        if (c == null) {
+            throw new CompetitorNotFoundException("Competitor \"" + name + "\" is not registered. Add the competitor before submitting a result.");
+        }
+        ScoringService.EventDef def = scoring.get(eventId);
+        if (def == null) {
+            throw new IllegalArgumentException("Unknown event.");
+        }
+        String eventCompetition = competitionOfEvent(def);
+        if (!eventCompetition.equals(c.competition)) {
+            throw new IllegalArgumentException("Competitor \"" + name + "\" is registered for " + c.competition + ", not " + eventCompetition + ".");
+        }
+        c.points.put(eventId, 0);
+    }
+
     public synchronized void setScore(String name, String eventId, int points) {
         Competitor c = competitors.get(name);
         if (c != null) {
@@ -147,16 +179,10 @@ public class CompetitionService {
     }
 
     public synchronized List<StandingRow> standingsFor(List<ScoringService.EventDef> events) {
+        String targetCompetition = events == ScoringService.HEPTATHLON_EVENTS ? "Heptathlon" : "Decathlon";
         List<StandingRow> rows = new ArrayList<>();
         for (Competitor c : competitors.values()) {
-            boolean hasAny = false;
-            for (ScoringService.EventDef e : events) {
-                if (c.points.containsKey(e.id)) {
-                    hasAny = true;
-                    break;
-                }
-            }
-            if (!hasAny) {
+            if (!c.competition.equals(targetCompetition)) {
                 continue;
             }
             Map<String, Integer> scores = new LinkedHashMap<>();
@@ -228,11 +254,26 @@ public class CompetitionService {
         }
     }
 
+    private static final class PendingCompetitor {
+        final String name;
+        final String competition;
+        final Map<String, Integer> points;
+
+        PendingCompetitor(String name, String competition, Map<String, Integer> points) {
+            this.name = name;
+            this.competition = competition;
+            this.points = points;
+        }
+    }
+
     public synchronized void importCsv(String csv) {
         String[] lines = csv.split("\r?\n");
+        List<PendingCompetitor> pending = new ArrayList<>();
         List<ScoringService.EventDef> currentEvents = null;
         String currentCompetition = null;
         String[] currentHeader = null;
+        boolean sawAnySection = false;
+
         for (String line : lines) {
             if (line.isBlank()) {
                 currentEvents = null;
@@ -244,12 +285,14 @@ public class CompetitionService {
                 currentEvents = ScoringService.DECATHLON_EVENTS;
                 currentCompetition = "Decathlon";
                 currentHeader = null;
+                sawAnySection = true;
                 continue;
             }
             if (line.equals("Heptathlon")) {
                 currentEvents = ScoringService.HEPTATHLON_EVENTS;
                 currentCompetition = "Heptathlon";
                 currentHeader = null;
+                sawAnySection = true;
                 continue;
             }
             if (currentEvents == null) {
@@ -257,6 +300,9 @@ public class CompetitionService {
             }
             if (currentHeader == null) {
                 currentHeader = line.split(",", -1);
+                if (currentHeader.length == 0 || !currentHeader[0].trim().equals("Name")) {
+                    throw new IllegalArgumentException("The file is corrupt: expected a header row starting with \"Name\".");
+                }
                 continue;
             }
             String[] cells = line.split(",", -1);
@@ -267,10 +313,7 @@ public class CompetitionService {
             if (name.isEmpty()) {
                 continue;
             }
-            try {
-                addCompetitor(name, currentCompetition);
-            } catch (IllegalArgumentException ignored) {
-            }
+            Map<String, Integer> points = new LinkedHashMap<>();
             for (int i = 1; i < cells.length - 1 && i < currentHeader.length - 1; i++) {
                 String value = cells[i].trim();
                 if (value.isEmpty()) {
@@ -279,13 +322,34 @@ public class CompetitionService {
                 String label = currentHeader[i].trim();
                 ScoringService.EventDef def = findByLabel(currentEvents, label);
                 if (def == null) {
-                    continue;
+                    throw new IllegalArgumentException("The file is corrupt: unknown column \"" + label + "\".");
                 }
+                int parsed;
                 try {
-                    int points = Integer.parseInt(value);
-                    setScore(name, def.id, points);
-                } catch (NumberFormatException ignored) {
+                    parsed = Integer.parseInt(value);
+                } catch (NumberFormatException ex) {
+                    throw new IllegalArgumentException("The file is corrupt: \"" + value + "\" is not a valid score for " + def.colLabel + ".");
                 }
+                int maxPossible = def.track ? scoring.score(def.id, def.min) : scoring.score(def.id, def.max);
+                if (parsed < 0 || parsed > maxPossible) {
+                    throw new IllegalArgumentException("The file is corrupt: the score " + parsed + " for " + def.colLabel + " is not possible.");
+                }
+                points.put(def.id, parsed);
+            }
+            pending.add(new PendingCompetitor(name, currentCompetition, points));
+        }
+
+        if (!sawAnySection) {
+            throw new IllegalArgumentException("The file is corrupt: it does not contain Decathlon or Heptathlon data.");
+        }
+
+        for (PendingCompetitor p : pending) {
+            try {
+                addCompetitor(p.name, p.competition);
+            } catch (IllegalArgumentException ignored) {
+            }
+            for (Map.Entry<String, Integer> entry : p.points.entrySet()) {
+                setScore(p.name, entry.getKey(), entry.getValue());
             }
         }
     }

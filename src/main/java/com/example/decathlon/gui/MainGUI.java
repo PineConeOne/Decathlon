@@ -18,8 +18,6 @@ import com.example.decathlon.core.ScoringService;
 
 public class MainGUI {
 
-    private static final int MAX_COMPETITORS = 40;
-
     private final ScoringService scoringService = new ScoringService();
     private final CompetitionService competitionService = new CompetitionService(scoringService);
 
@@ -157,12 +155,6 @@ public class MainGUI {
     private void onAddCompetitor() {
         String name = addNameField.getText();
         String competition = (String) addCompetitionBox.getSelectedItem();
-        String trimmedName = name == null ? "" : name.trim();
-
-        if (competitionService.competitionOf(trimmedName) == null && competitionService.competitorCount() >= MAX_COMPETITORS) {
-            JOptionPane.showMessageDialog(null, "Maximum of 40 competitors reached.", "Limit Reached", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
 
         try {
             competitionService.addCompetitor(name, competition);
@@ -286,7 +278,12 @@ public class MainGUI {
             JOptionPane.showMessageDialog(null, "Import failed: " + ex.getMessage(), "Import Failed", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        competitionService.importCsv(csv);
+        try {
+            competitionService.importCsv(csv);
+        } catch (IllegalArgumentException ex) {
+            JOptionPane.showMessageDialog(null, ex.getMessage(), "Import Failed", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
         refreshCompetitorBox();
         refreshTables();
     }
