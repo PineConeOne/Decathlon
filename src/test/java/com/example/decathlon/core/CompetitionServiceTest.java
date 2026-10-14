@@ -2,8 +2,7 @@ package com.example.decathlon.core;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class CompetitionServiceTest {
     ScoringService scoring = new ScoringService();
@@ -44,6 +43,24 @@ public class CompetitionServiceTest {
         assertEquals(expectedNumberOfCompetitors, actualNumberOfCpompetitors);
     }
 
+//    @Test
+//    void adding41competitorsNotAllowed(){
+//        int expectedNumberOfCompetitors = 40;
+//        for (int i = 1; i<= 40; i++){
+//            competitionService.addCompetitor("Deltagare" + i, "Decathlon");
+//        }
+//
+//        competitionService.addCompetitor("Deltagare 41", "Decathlon");  // Går det att lägga till 41:a deltageren?
+//
+//        String expectedMessage = "Maximum number of competitor is already saved";
+//
+//        int actualNumberOfCompetitors = competitionService.competitorCount();
+//
+//        assertEquals(expectedNumberOfCompetitors, actualNumberOfCompetitors,expectedMessage);
+//    }
+
+
+// chat gpt vill att det skrivs så här eftersom testet felar/blir rött/
     @Test
     void adding41competitorsNotAllowed(){
         int expectedNumberOfCompetitors = 40;
@@ -51,13 +68,13 @@ public class CompetitionServiceTest {
             competitionService.addCompetitor("Deltagare" + i, "Decathlon");
         }
 
-        competitionService.addCompetitor("Deltagare 41", "Decathlon");  // Går det att lägga till 41:a deltageren?
-
-        String expectedMessage = "Maximum number of competitor is already saved";
+        // Fånga undantaget som kastas när man försöker lägga till den 41:a
+        assertThrows(IllegalArgumentException.class, () -> {
+            competitionService.addCompetitor("Deltagare 41", "Decathlon");
+        });
 
         int actualNumberOfCompetitors = competitionService.competitorCount();
 
-        assertEquals(expectedNumberOfCompetitors, actualNumberOfCompetitors,expectedMessage);
+        assertEquals(expectedNumberOfCompetitors, actualNumberOfCompetitors);
     }
-
 }
