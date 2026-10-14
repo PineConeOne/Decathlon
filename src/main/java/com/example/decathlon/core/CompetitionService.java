@@ -144,6 +144,9 @@ public class CompetitionService {
         if (!eventCompetition.equals(c.competition)) {
             throw new IllegalArgumentException("Competitor \"" + name + "\" is registered for " + c.competition + ", not " + eventCompetition + ".");
         }
+        if (!Double.isFinite(raw)) {
+            throw new ScoreOutOfRangeException("Value for " + def.colLabel + " must be finite.");
+        }
         if (raw < def.min) {
             throw new ScoreOutOfRangeException("Value too low for " + def.colLabel + ". Minimum accepted value is " + def.min + ".");
         }
